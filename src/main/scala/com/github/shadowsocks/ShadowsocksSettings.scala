@@ -37,7 +37,7 @@ object ShadowsocksSettings {
   private val PROXY_PREFS = Array(Key.group_name, Key.name, Key.host, Key.remotePort, Key.localPort, Key.password, Key.method,
     Key.protocol, Key.obfs, Key.obfs_param, Key.dns, Key.china_dns, Key.protocol_param, Key.v_ps,
     Key.v_id, Key.v_add, Key.v_host, Key.v_port, Key.v_path, Key.v_aid, Key.v_id_json, Key.v_add_json, Key.v_aid_json, Key.v_security_json,
-    Key.v_security, Key.v_tls, Key.v_headertypes, Key.v_net)
+    Key.v_security, Key.v_tls, Key.v_headertypes, Key.v_net, Key.v_allowInsecure, Key.t_addr, Key.t_sni, Key.t_verify_certificate)
   private val FEATURE_PREFS = Array(Key.route, Key.proxyApps, Key.udpdns, Key.ipv6, Key.tfo)
 
   // Helper functions
@@ -71,6 +71,7 @@ object ShadowsocksSettings {
 //    val isPerAppProxyEnabled = app.appStateManager.getAppState().map(_.per_app_proxy_enable).getOrElse(false)
     if (profile.isVmess) {
       val v_security = if (TextUtils.isEmpty(profile.v_security)) "auto" else profile.v_security
+      val v_allowInsecure = if (profile.t_allowInsecure) "true" else "false"
       name match {
         case Key.group_name => updateSummaryEditTextPreference(pref, profile.url_group)
         case Key.v_ps => updateSummaryEditTextPreference(pref, profile.v_ps)
@@ -88,6 +89,7 @@ object ShadowsocksSettings {
         case Key.dns => updateSummaryEditTextPreference(pref, profile.dns)
         case Key.china_dns => updateSummaryEditTextPreference(pref, profile.china_dns)
         case Key.ipv6 => updateSwitchPreference(pref, profile.ipv6)
+        case Key.v_allowInsecure => updateDropDownPreference(pref, v_allowInsecure)
         case _ =>
       }
       return
@@ -98,6 +100,22 @@ object ShadowsocksSettings {
         case Key.v_ps => updateSummaryEditTextPreference(pref, profile.v_ps)
         case Key.v_aid_json => updatePreference(pref, profile.v_aid)
         case Key.v_security_json => updatePreference(pref, profile.v_security)
+        case _ =>
+      }
+      return
+    }
+    if (profile.isTrojan) {
+      name match {
+        case Key.group_name => updateSummaryEditTextPreference(pref, profile.url_group)
+        case Key.name => updateSummaryEditTextPreference(pref, profile.name)
+        case Key.remotePort => updateNumberPickerPreference(pref, profile.t_port)
+        case Key.password => updatePasswordEditTextPreference(pref, profile.password)
+        case Key.t_verify_certificate => updateSwitchPreference(pref, !profile.t_allowInsecure)
+        case Key.route => updateDropDownPreference(pref, profile.route)
+        case Key.udpdns => updateSwitchPreference(pref, profile.udpdns)
+        case Key.dns => updateSummaryEditTextPreference(pref, profile.dns)
+        case Key.china_dns => updateSummaryEditTextPreference(pref, profile.china_dns)
+        case Key.ipv6 => updateSwitchPreference(pref, profile.ipv6)
         case _ =>
       }
       return
@@ -119,7 +137,7 @@ object ShadowsocksSettings {
       case Key.dns => updateSummaryEditTextPreference(pref, profile.dns)
       case Key.china_dns => updateSummaryEditTextPreference(pref, profile.china_dns)
       case Key.ipv6 => updateSwitchPreference(pref, profile.ipv6)
-      case _ => {}
+      case _ =>
     }
   }
 
@@ -146,6 +164,7 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
   private var ssrCategory: PreferenceGroup  = _
   private var vmessCategory: PreferenceGroup  = _
   private var v2rayJSONCategory: PreferenceGroup  = _
+  private var trojanCategory: PreferenceGroup  = _
   private var featureCategory: PreferenceGroup  = _
   private var miscCategory: PreferenceGroup  = _
 
@@ -157,15 +176,16 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
 
     ssrCategory = Option(ssrCategory).getOrElse(findPreference(getResources.getString(R.string.ssrPreferenceGroup)).asInstanceOf[PreferenceGroup])
     vmessCategory  = Option(vmessCategory).getOrElse(findPreference(getResources.getString(R.string.vmessPreferenceGroup)).asInstanceOf[PreferenceGroup])
-    val categories = List(ssrCategory, vmessCategory).filter(category => category != null)
+    trojanCategory  = Option(trojanCategory).getOrElse(findPreference(getResources.getString(R.string.trojanPreferenceGroup)).asInstanceOf[PreferenceGroup])
+    val categories = List(ssrCategory, vmessCategory, trojanCategory).filter(category => category != null)
     categories.foreach(_.findPreference(Key.group_name).setOnPreferenceChangeListener((_, value) => {
       profile.url_group = value.asInstanceOf[String]
       app.profileManager.updateProfile(profile)
     }))
-    findPreference(Key.name).setOnPreferenceChangeListener((_, value) => {
+    List(ssrCategory, trojanCategory).filter(category => category != null).foreach(_.findPreference(Key.name).setOnPreferenceChangeListener((_, value) => {
       profile.name = value.asInstanceOf[String]
       app.profileManager.updateProfile(profile)
-    })
+    }))
     findPreference(Key.host).setOnPreferenceClickListener((preference: Preference) => {
       val HostEditText = new EditText(activity);
       HostEditText.setText(profile.host);
@@ -183,8 +203,12 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
         .show()
       true
     })
-    findPreference(Key.remotePort).setOnPreferenceChangeListener((_, value) => {
+    ssrCategory.findPreference(Key.remotePort).setOnPreferenceChangeListener((_, value) => {
       profile.remotePort = value.asInstanceOf[Int]
+      app.profileManager.updateProfile(profile)
+    })
+    trojanCategory.findPreference(Key.remotePort).setOnPreferenceChangeListener((_, value) => {
+      profile.t_port = value.asInstanceOf[Int]
       app.profileManager.updateProfile(profile)
     })
     findPreference(Key.localPort).setOnPreferenceChangeListener((_, value) => {
@@ -235,30 +259,44 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
       true
     })
 
-//    findPreference(Key.v_port).setOnPreferenceChangeListener((_, value) => {
-//      profile.v_port = value.asInstanceOf[Int].toString
-//      app.profileManager.updateProfile(profile)
-//    })
+    //trojan
+    findPreference(Key.t_addr).setOnPreferenceClickListener((preference: Preference) => {
+      val HostEditText = new EditText(activity)
+      HostEditText.setText(profile.t_addr)
+      new AlertDialog.Builder(activity)
+        .setTitle(getString(R.string.proxy))
+        .setPositiveButton(android.R.string.ok, ((_, _) => {
+          profile.t_addr = HostEditText.getText().toString()
+          app.profileManager.updateProfile(profile)
+        }): DialogInterface.OnClickListener)
+        .setNegativeButton(android.R.string.no,  ((_, _) => {
+          setProfile(profile)
+        }): DialogInterface.OnClickListener)
+        .setView(HostEditText)
+        .create()
+        .show()
+      true
+    })
 
-//    findPreference(Key.v_aid).setOnPreferenceChangeListener((_, value) => {
-//      profile.v_aid = value.asInstanceOf[Int].toString
-//      app.profileManager.updateProfile(profile)
-//    })
+    findPreference(Key.t_sni).setOnPreferenceClickListener((preference: Preference) => {
+      val HostEditText = new EditText(activity)
+      HostEditText.setText(profile.t_peer)
+      new AlertDialog.Builder(activity)
+        .setTitle(getString(R.string.proxy))
+        .setPositiveButton(android.R.string.ok, ((_, _) => {
+          profile.t_peer = HostEditText.getText().toString()
+          app.profileManager.updateProfile(profile)
+        }): DialogInterface.OnClickListener)
+        .setNegativeButton(android.R.string.no,  ((_, _) => {
+          setProfile(profile)
+        }): DialogInterface.OnClickListener)
+        .setView(HostEditText)
+        .create()
+        .show()
+      true
+    })
 
-//    findPreference(Key.v_host).setOnPreferenceChangeListener((_, value) => {
-//      profile.v_host = value.asInstanceOf[String]
-//      app.profileManager.updateProfile(profile)
-//    })
-//
-//    findPreference(Key.v_path).setOnPreferenceChangeListener((_, value) => {
-//      profile.v_path = value.asInstanceOf[String]
-//      app.profileManager.updateProfile(profile)
-//    })
-//
-//    findPreference(Key.v_security).setOnPreferenceChangeListener((_, value) => {
-//      profile.v_security = value.asInstanceOf[String]
-//      app.profileManager.updateProfile(profile)
-//    })
+    this.onSettingChange[Boolean](Key.t_verify_certificate, value => profile.t_allowInsecure = !value)
 
     this.onSettingChange[Int](Key.v_port, value => profile.v_port = value.toString)
     this.onSettingChange[Int](Key.v_aid, value => profile.v_aid = value.toString)
@@ -289,6 +327,13 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
     tlsPreference.setDropDownWidth(R.dimen.default_dropdown_width)
     tlsPreference.setOnPreferenceChangeListener((_, value) => {
       profile.v_tls = value.asInstanceOf[String]
+      app.profileManager.updateProfile(profile)
+    })
+
+    val allowInsecurePreference = findPreference(Key.v_allowInsecure).asInstanceOf[DropDownPreference]
+    allowInsecurePreference.setDropDownWidth(R.dimen.default_dropdown_width)
+    allowInsecurePreference.setOnPreferenceChangeListener((_, value) => {
+      profile.t_allowInsecure = if (value.asInstanceOf[String] == "true") true else false
       app.profileManager.updateProfile(profile)
     })
 
@@ -351,7 +396,7 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
       }
       else {
         app.currentProfile match {
-          case Some(x) if x.isV2Ray => app.profileManager.updateAllProfileRoute("v2ray", value.asInstanceOf[String])
+          case Some(x) if x.isV2Ray || x.isTrojan => app.profileManager.updateAllProfileRoute("v2ray_trojan", value.asInstanceOf[String])
           case Some(_) => app.profileManager.updateAllProfileRoute("ssr", value.asInstanceOf[String])
           case None =>
         }
@@ -664,6 +709,7 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
     screen = Option(screen).getOrElse(findPreference(getResources.getString(R.string.preferenceScreen)).asInstanceOf[PreferenceScreen])
     ssrCategory = Option(ssrCategory).getOrElse(findPreference(getResources.getString(R.string.ssrPreferenceGroup)).asInstanceOf[PreferenceGroup])
     vmessCategory  = Option(vmessCategory).getOrElse(findPreference(getResources.getString(R.string.vmessPreferenceGroup)).asInstanceOf[PreferenceGroup])
+    trojanCategory  = Option(trojanCategory).getOrElse(findPreference(getResources.getString(R.string.trojanPreferenceGroup)).asInstanceOf[PreferenceGroup])
     v2rayJSONCategory  = Option(v2rayJSONCategory).getOrElse(findPreference(getResources.getString(R.string.v2rayJSONPreferenceGroup)).asInstanceOf[PreferenceGroup])
     featureCategory = Option(featureCategory).getOrElse(findPreference(getResources.getString(R.string.featurePreferenceGroup)).asInstanceOf[PreferenceGroup])
     miscCategory  = Option(miscCategory).getOrElse(findPreference(getResources.getString(R.string.miscPreferenceGroup)).asInstanceOf[PreferenceGroup])
@@ -671,17 +717,18 @@ class ShadowsocksSettings extends PreferenceFragment with OnSharedPreferenceChan
     profile match {
       case p if p.isVmess => screen.addPreference(vmessCategory)
       case p if p.isV2RayJSON => screen.addPreference(v2rayJSONCategory)
+      case p if p.isTrojan => screen.addPreference(trojanCategory)
       case _ => screen.addPreference(ssrCategory)
     }
     screen.addPreference(featureCategory)
     screen.addPreference(miscCategory)
     val routePref = findPreference(Key.route).asInstanceOf[DropDownPreference]
     val routeEntries = profile match {
-      case x if x.isV2Ray => getResources.getTextArray(R.array.route_entry_v2ray)
+      case x if x.isV2Ray || x.isTrojan => getResources.getTextArray(R.array.route_entry_v2ray)
       case _ => getResources.getTextArray(R.array.route_entry)
     }
     val routeValues = getResources.getTextArray(R.array.route_value)
-    if (profile.isV2Ray && routeValues.indexOf(profile.route) > 5) {
+    if ((profile.isV2Ray || profile.isTrojan) && routeValues.indexOf(profile.route) > 5) {
       profile.route = "bypass-lan-china"
     }
     routePref.setEntries(routeEntries)

@@ -103,13 +103,19 @@ object SSRSub {
     }
   }
 
+  def decodeBase64 (data: String): String = {
+    val resp = data.replaceAll("=", "")
+      .replaceAll("\\+", "-")
+      .replaceAll("/", "_")
+    new String(Base64.decode(resp, Base64.URL_SAFE), "UTF-8")
+  }
+
   def getResponseString (response: okhttp3.Response): String = {
     var subscribes = ""
     val contentType = response.header("content-type", null)
     if (contentType != null && contentType.contains("application/octet-stream")) {
       autoClose(response.body().byteStream())(in => {
-        subscribes = scala.io.Source.fromInputStream(in).mkString
-        subscribes = new String(Base64.decode(subscribes, Base64.URL_SAFE))
+        subscribes = decodeBase64(scala.io.Source.fromInputStream(in).mkString)
       })
     } else {
       val resp = response.body().string.replaceAll("=", "")
@@ -132,8 +138,9 @@ object SSRSub {
       }
       return Some(ssrsub)
     } else {
-      val profiles_vmess = Parser.findAllVmess(responseString).toList
-      if (profiles_vmess.nonEmpty) {
+      var profiles = Parser.findAllVmess(responseString).toList
+      profiles = if (profiles.nonEmpty) profiles else Parser.findAllTrojan(responseString).toList
+      if (profiles.nonEmpty) {
         val ssrsub = new SSRSub {
           url = requestURL
           updated_at = Utils.today
@@ -149,10 +156,10 @@ object SSRSub {
 
     def addProfiles(responseString: String, subUrl: String =""): Unit = {
       var currentProfile = app.currentProfile
-      val delete_profiles = app.profileManager.getAllProfilesBySSRSub(ssrsub) match {
+      val delete_profiles = app.profileManager.getAllProfilesBySSRSub(ssrsub, true) match {
         case Some(subProfiles) =>
           subProfiles.filter(profile=> profile.ssrsub_id <= 0 || profile.ssrsub_id == ssrsub.id)
-        case _ => null
+        case _ => List()
       }
       var limit_num = -1
       var encounter_num = 0
@@ -169,7 +176,8 @@ object SSRSub {
       val profiles = subUrl match {
         case url if url.indexOf("sub=1") > 0 => findAllSSR(responseString)
         case url if url.indexOf("sub=3") > 0 => Parser.findAllVmess(responseString)
-        case _ => findAllSSR(responseString) ++ Parser.findAllVmess(responseString)
+        case url if url.indexOf("mu=5") > 0 => Parser.findAllTrojan(responseString)
+        case _ => findAllSSR(responseString) ++ Parser.findAllVmess(responseString) ++ Parser.findAllTrojan(responseString)
       }
 //      if (responseString.indexOf("MAX=") == 0) {
 //        limit_num = responseString.split("\\n")(0).split("MAX=")(1).replaceAll("\\D+","").toInt
@@ -217,7 +225,6 @@ object SSRSub {
 
   }
 
-// TODO: TIME
 class SSRSub {
   @DatabaseField(generatedId = true)
   var id: Int = 0
@@ -230,4 +237,7 @@ class SSRSub {
 
   @DatabaseField
   var updated_at: String = ""
+
+  @DatabaseField
+  var enable_auto_update: Boolean = true
 }

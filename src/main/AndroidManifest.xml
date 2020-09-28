@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools" package="com.github.shadowsocks"
-          android:versionCode="330"
-          android:versionName="3.7.14">
+          android:versionCode="331"
+          android:versionName="3.8.3">
 
 
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -25,7 +25,7 @@
                   android:required="false"/>
 
     <uses-sdk
-            android:minSdkVersion="16"
+            android:minSdkVersion="21"
             android:targetSdkVersion="29"/>
 
     <application

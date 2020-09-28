@@ -4,6 +4,14 @@ import go.Seq;
 
 public abstract class Tun2socks
 {
+    public static final long AddrTypeFQDN = 3L;
+    public static final long AddrTypeIPv4 = 1L;
+    public static final long AddrTypeIPv6 = 4L;
+    public static final long AuthMethodNotRequired = 0L;
+    public static final long SocksCmdConnect = 1L;
+    public static final long StatusSucceeded = 0L;
+    public static final long Version5 = 5L;
+
     private Tun2socks() {
     }
 
@@ -14,13 +22,21 @@ public abstract class Tun2socks
 
     public static native String checkVersion();
 
+    public static native Vmess convertJSONToVmess(final byte[] p0) throws Exception;
+
     public static native void copyAssets(final String p0, final boolean p1) throws Exception;
 
     public static native String generateVmessString(final Vmess p0) throws Exception;
 
+    public static native long getFreePort() throws Exception;
+
     public static native void inputPacket(final byte[] p0);
 
-    public static native Vmess newVmess(final String p0, final String p1, final String p2, final String p3, final long p4, final long p5, final String p6, final String p7, final String p8, final String p9, final long p10, final String p11, final String p12);
+    public static native Trojan newTrojan(final String p0, final long p1, final String p2, final String p3, final boolean p4, final byte[] p5);
+
+    public static native Vmess newVmess(final String p0, final String p1, final String p2, final String p3, final long p4, final long p5, final String p6, final String p7, final String p8, final String p9, final byte[] p10);
+
+    public static native long queryOutboundStats(final String p0, final String p1);
 
     public static native long queryStats(final String p0);
 
@@ -28,7 +44,13 @@ public abstract class Tun2socks
 
     public static native boolean setNonblock(final long p0, final boolean p1);
 
+    public static native void startTrojan(final PacketFlow p0, final VpnService p1, final LogService p2, final Trojan p3, final String p4) throws Exception;
+
+    public static native void startTrojanTunFd(final long p0, final VpnService p1, final LogService p2, final QuerySpeed p3, final Trojan p4, final String p5) throws Exception;
+
     public static native void startV2Ray(final PacketFlow p0, final VpnService p1, final LogService p2, final byte[] p3, final String p4) throws Exception;
+
+    public static native void startV2RayWithTunFd(final long p0, final VpnService p1, final LogService p2, final QuerySpeed p3, final Vmess p4, final String p5) throws Exception;
 
     public static native void startV2RayWithVmess(final PacketFlow p0, final VpnService p1, final LogService p2, final Vmess p3, final String p4) throws Exception;
 
@@ -38,19 +60,13 @@ public abstract class Tun2socks
 
     public static native long testConfigLatency(final byte[] p0, final String p1) throws Exception;
 
-    public static native long testVmessLatency(final Vmess p0, final String p1, final long p2) throws Exception;
+    public static native long testTCPPing(final String p0, final long p1) throws Exception;
+
+    public static native long testTrojanLatency(final Trojan p0) throws Exception;
 
     public static native long testURLLatency(final String p0) throws Exception;
 
-    public static native long testTCPPing(final String p0, final long p1) throws Exception;
-
-    public static native Vmess convertJSONToVmess(final byte[] p0) throws Exception;
-
-    public static native long getFreePort() throws Exception;
-
-    public static native void startSocks(final PacketFlow p0, final String p1, final long p2);
-
-    public static native void stopSocks();
+    public static native long testVmessLatency(final Vmess p0, final long p1) throws Exception;
 
     static {
         Seq.touch();
@@ -91,6 +107,24 @@ public abstract class Tun2socks
 
         @Override
         public native void writePacket(final byte[] p0);
+    }
+
+    private static final class proxyQuerySpeed implements Seq.Proxy, QuerySpeed
+    {
+        private final int refnum;
+
+        @Override
+        public final int incRefnum() {
+            Seq.incGoRef(this.refnum, this);
+            return this.refnum;
+        }
+
+        proxyQuerySpeed(final int refnum) {
+            Seq.trackGoRef(this.refnum = refnum, this);
+        }
+
+        @Override
+        public native void updateTraffic(final long p0, final long p1);
     }
 
     private static final class proxyVpnService implements Seq.Proxy, VpnService

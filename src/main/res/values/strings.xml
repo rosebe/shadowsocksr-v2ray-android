@@ -29,6 +29,7 @@
   <!-- proxy category -->
   <string name="proxy_cat">Server Settings</string>
   <string name="proxy_v2ray" translatable="false">V2Ray Settings</string>
+  <string name="proxy_trojan" translatable="false">Trojan Settings</string>
   <string name="profile_name">Profile Name</string>
   <string name="proxy">Server</string>
   <string name="proxy_summary">Hostname or IP of the remote server</string>
@@ -124,9 +125,13 @@
   <string name="quick_switch">Switch</string>
   <string name="service_ssr" translatable="false">SSR Service</string>
   <string name="service_v2ray" translatable="false">V2Ray Service</string>
+  <string name="service_trojan" translatable="false">Trojan Service</string>
   <string name="service_nat" translatable="false">Nat Service</string>
+  <string name="service_test" translatable="false">Latency Test Service</string>
+  <string name="service_test_working">Testing Profiles…</string>
 
-  <!-- alert category -->
+
+    <!-- alert category -->
   <string name="close">Close</string>
   <string name="proxy_empty">\'Proxy\' and \'Password\' should not be empty</string>
   <string name="connect">Connect</string>
@@ -135,7 +140,7 @@
   <string name="loading">Loading…</string>
   <string name="remove_profile">Remove this profile "%s"?</string>
 
-  <string name="dr">Duplicate Removal Add</string>
+  <string name="dr">No Duplicates</string>
   <string name="open_url">Open</string>
 
 
@@ -192,13 +197,14 @@
   <string name="profile_manager_dialog_content">&#8226; Tap to select a profile;\n&#8226; Swipe left/right or press left
     to remove;\n&#8226; Long press to reorder profiles.</string>
   <string name="gotcha">Gotcha!</string>
-  <string name="add_profile_dialog">Copy to clipboard?</string>
+  <string name="add_profile_dialog">Add Profiles?</string>
   <string name="add_profile_methods_scan_qr_code">Scan QR code</string>
   <string name="add_profile_methods_manual_settings">Manual Settings</string>
   <string name="add_profile_nfc_hint_title">Use Android Beam (NFC) to add a profile</string>
   <string name="add_profile_nfc_hint">Keep both devices\' screen on. On the other device, click on the \'share\' button. Place both devices\' backs against each other.\nYou may also scan a nfc tag.</string>
   <string name="add_profile_scanner_permission_required">Camera permission is required for scanning QR code.</string>
   <string name="copy_url">Copy URL</string>
+  <string name="copy">Copy</string>
   <plurals name="removed">
     <item quantity="one">Removed</item>
     <item quantity="other">%d items removed</item>
@@ -207,7 +213,9 @@
 
   <string name="tips_testing">Testing...</string>
   <string name="tips_sorting">Sorting...</string>
-  <string name="action_full_test">Full latency test</string>
+  <string name="action_full_test">Full Latency Test</string>
+  <string name="action_full_test_bg">Run full latency test in background</string>
+  <string name="action_full_test_finished">Test Finished</string>
   <string name="action_sort">Auto sort by latency</string>
   <string name="ping">Ping</string>
   <string name="batch_delete">Batch Delete</string>
@@ -234,8 +242,13 @@
   <string name="ssrsub_toast_start">Updating subscriptions...</string>
   <string name="ssrsub_toast_success">Successfully updated subscriptions.</string>
   <string name="ssrsub_toast_fail">Failed to update subscriptions!</string>
+  <string name="enable_auto_update_subscription">Enable Auto Update This Subscription</string>
   <string name="group_name">Group Name</string>
-  <string name="proxy_click">Click on the group name to view its URL</string>
+  <string name="proxy_click">Click to view and edit server address</string>
+  <string name="sni_click">Click to view and edit SNI</string>
+  <string name="sni_title">Server Name Indication (SNI)</string>
+  <string name="verify_certificate">Verify Certificate</string>
+  <string name="verify_certificate_summary">Verify server\'s certificate and host name</string>
   <string name="ssrsub_remove_tip_title">Subscription removal</string>
   <string name="ssrsub_remove_tip">Delete this subscription without removing its nodes (nodes that bear its group name)?</string>
   <string name="ssrsub_remove_tip_direct">Delete the URL only</string>
@@ -267,6 +280,7 @@
   <string name="preferenceScreen" translatable="false">preferenceScreen</string>
   <string name="v2rayJSONPreferenceGroup" translatable="false">v2rayJSONPreferenceGroup</string>
   <string name="vmessPreferenceGroup" translatable="false">vmessPreferenceGroup</string>
+  <string name="trojanPreferenceGroup" translatable="false">trojanPreferenceGroup</string>
   <string name="ssrPreferenceGroup" translatable="false">ssrPreferenceGroup</string>
   <string name="featurePreferenceGroup" translatable="false">featurePreferenceGroup</string>
   <string name="miscPreferenceGroup" translatable="false">miscPreferenceGroup</string>
@@ -331,7 +345,13 @@
 
   <string name="title_ssr_dns_nocache">SSR DNS Cache</string>
 
+  <string name="title_v2ray_sniff_enable">Enable Sniff Domain</string>
+  <string name="summary_v2ray_sniff_enable">Sniff Domain</string>
+
+
   <string name="ssr_category">SSR Settings</string>
+  <string name="v2ray_category">V2Ray Settings</string>
+
 
   <plurals name="format_minutes">
     <item quantity="one">%d minute</item>

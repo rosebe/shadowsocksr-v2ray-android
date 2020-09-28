@@ -22,7 +22,7 @@ import android.text.style.TextAppearanceSpan
 import android.text.{SpannableStringBuilder, Spanned, TextUtils}
 import android.util.Log
 import android.view.{Gravity, KeyEvent, LayoutInflater, MenuItem, View, ViewGroup}
-import android.widget.{CompoundButton, EditText, ImageView, PopupMenu, Switch, TextView, Toast}
+import android.widget.{CheckBox, CompoundButton, EditText, ImageView, LinearLayout, PopupMenu, Switch, TextView, Toast}
 import com.github.shadowsocks.ShadowsocksApplication.app
 import com.github.shadowsocks.database.{Profile, SSRSub}
 import com.github.shadowsocks.utils.{Key, Parser, Utils}
@@ -30,6 +30,7 @@ import com.github.shadowsocks.widget.UndoSnackbarManager
 import com.github.shadowsocks.{ConfigActivity, ProfileManagerActivity, R}
 import okhttp3.{OkHttpClient, Request}
 import android.webkit.URLUtil
+import net.glxn.qrgen.android.QRCode
 
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
@@ -96,9 +97,10 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
   }
 
   private[this] def addSubscription(): Unit = {
-    showSubscriptionDialog(None) { (responseString, url, groupName) => {
+    showSubscriptionDialog(None) { (responseString, url, groupName, enableAutoSub) => {
       SSRSub.createSSRSub(responseString, url, groupName) match {
         case Some(ssrsub) => {
+          ssrsub.enable_auto_update = enableAutoSub
           handler.post(() => app.ssrsubManager.createSSRSub(ssrsub))
 //          addProfilesFromSubscription(ssrsub, responseString)
           ssrsub.addProfiles(responseString, url)
@@ -110,16 +112,18 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
     }
   }
 
-  private  def showSubscriptionDialog (ssrSub: Option[SSRSub])(responseHandler: (String, String, String) => Unit): Unit = {
+  private  def showSubscriptionDialog (ssrSub: Option[SSRSub])(responseHandler: (String, String, String, Boolean) => Unit): Unit = {
     val context = getActivity
     val view = View.inflate(context, R.layout.layout_ssr_sub_add, null)
     val etAddUrl = view.findViewById(R.id.et_subscription_url).asInstanceOf[EditText]
     val etGroupName = view.findViewById(R.id.et_group_name).asInstanceOf[EditText]
+    val cbEnableAutoSub = view.findViewById(R.id.cb_enable_auto_update_subscription).asInstanceOf[CheckBox]
     var title = getString(R.string.ssrsub_add)
     ssrSub match {
       case Some(sub) => {
         etAddUrl.setText(sub.url)
         etGroupName.setText(sub.url_group)
+        cbEnableAutoSub.setChecked(sub.enable_auto_update)
         title = getString(R.string.ssrsub_edit)
       }
       case None =>
@@ -129,13 +133,14 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
       .setPositiveButton(android.R.string.ok, ((_, _) => {
         val url = etAddUrl.getText.toString
         val groupName = etGroupName.getText.toString
+        val autoSubEnabled = cbEnableAutoSub.isChecked
         if(URLUtil.isHttpsUrl(url) || URLUtil.isHttpUrl(url)) {
           ssrSub match {
-            case Some(x) if x.url == url => responseHandler(null, url, groupName)
+            case Some(x) if x.url == url => responseHandler(null, url, groupName, autoSubEnabled)
             case _ => Utils.ThrowableFuture {
               handler.post(() => testProgressDialog = ProgressDialog.show(context, getString(R.string.ssrsub_progres), getString(R.string.ssrsub_progres_text), false, true))
               SSRSub.getSubscriptionResponse(url).flatMap(responseString => Try{
-                responseHandler(responseString, url, groupName)
+                responseHandler(responseString, url, groupName, autoSubEnabled)
                 None
               }).recover{
                 case e: Exception => {
@@ -195,6 +200,7 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
         ssrsub.updated_at = Utils.today
         app.ssrsubManager.updateSSRSub(ssrsub)
         notifyGroupNameChange(Some(ssrsub.url_group))
+        configActivity.putStringExtra(Key.SUBSCRIPTION_UPDATED, "true")
         None
       }).recover{
       case e: Exception => {
@@ -206,7 +212,26 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
     ))
   }
 
-  private  def showRemoveDialog (index : Int, item: SSRSub): Unit = {
+  private def showShareDialog (url: String): Unit = {
+    val image = new ImageView(getActivity)
+    image.setLayoutParams(new LinearLayout.LayoutParams(-1, -1))
+    val qrcode = QRCode.from(url)
+      .withSize(Utils.dpToPx(getActivity, 250), Utils.dpToPx(getActivity, 250))
+      .asInstanceOf[QRCode].bitmap()
+    image.setImageBitmap(qrcode)
+    val dialog = new AlertDialog.Builder(getActivity, R.style.Theme_Material_Dialog_Alert)
+      .setCancelable(true)
+      .setPositiveButton(R.string.close, null)
+      .setNegativeButton(R.string.copy_url, ((_, _) =>
+        clipboard.setPrimaryClip(ClipData.newPlainText(null, url))): DialogInterface.OnClickListener)
+      .setView(image)
+      .setTitle(R.string.share)
+      .create()
+    dialog.setMessage(getString(R.string.share_message_without_nfc))
+    dialog.show()
+  }
+
+  private def showRemoveDialog (index : Int, item: SSRSub): Unit = {
     new AlertDialog.Builder(getActivity)
       .setTitle(getString(R.string.ssrsub_remove_tip_title))
       .setPositiveButton(R.string.ssrsub_remove_tip_direct, ((_, _) => {
@@ -306,7 +331,7 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
       val subscriptionMenu = new BottomSheetDialog(configActivity)
       val sheetView: View = configActivity.getLayoutInflater.inflate(R.layout.layout_subscription_menu, null)
       subscriptionMenu.setContentView(sheetView)
-      for (id <- List(R.id.subscription_menu_update, R.id.subscription_menu_edit, R.id.subscription_menu_delete, R.id.subscription_menu_copy_url)) {
+      for (id <- List(R.id.subscription_menu_update, R.id.subscription_menu_edit, R.id.subscription_menu_delete, R.id.subscription_menu_share_url)) {
         sheetView.findViewById[View](id).setOnClickListener(bottomMenuClickListener(subscriptionMenu))
       }
       subscriptionMenu.show()
@@ -331,7 +356,7 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
           }
           case R.id.subscription_menu_edit => edit_subscription()
           case R.id.subscription_menu_delete => showRemoveDialog(viewHolder.getAdapterPosition, viewHolder.item)
-          case R.id.subscription_menu_copy_url => clipboard.setPrimaryClip(ClipData.newPlainText(null, viewHolder.item.url))
+          case R.id.subscription_menu_share_url => showShareDialog(viewHolder.item.url)
           case _ =>
         }
         subscriptionMenu.dismiss()
@@ -418,11 +443,14 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
     }
 
     def edit_subscription(): Unit = {
-      showSubscriptionDialog(Some(item)) { (responseString, url, groupName) => {
+      showSubscriptionDialog(Some(item)) { (responseString, url, groupName, enableAutoSub) => {
+        Log.e(TAG, s"enableAutoSub: $enableAutoSub")
         (url, groupName) match {
-          case t if t._1 == item.url && t._2 != item.url_group => {
+          case t if t._1 == item.url &&
+            (t._2 != item.url_group || enableAutoSub != item.enable_auto_update) => {
             Utils.ThrowableFuture {
               this.item.url_group = groupName
+              this.item.enable_auto_update = enableAutoSub
               app.ssrsubManager.updateSSRSub(item)
               app.profileManager.updateGroupName(groupName, item.id)
               updateText(false)
@@ -432,6 +460,7 @@ class SubscriptionFragment extends Fragment with OnMenuItemClickListener {
           case t if t._1 != item.url => {
             item.url = url
             item.url_group = groupName
+            item.enable_auto_update = enableAutoSub
             app.ssrsubManager.updateSSRSub(item)
             item.addProfiles(responseString, url)
 //            addProfilesFromSubscription(item, responseString)

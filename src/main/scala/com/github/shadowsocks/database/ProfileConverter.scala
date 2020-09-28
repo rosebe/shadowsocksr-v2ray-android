@@ -12,7 +12,7 @@ import com.github.shadowsocks.ShadowsocksApplication.app
 import com.github.shadowsocks.database.VmessAction.profile
 import com.github.shadowsocks.utils.{ConfigUtils, ExeNative, NetUtils, TcpFastOpen, Utils}
 import okhttp3.{OkHttpClient, Request}
-import tun2socks.{Tun2socks, Vmess}
+import tun2socks.{Trojan, Tun2socks, Vmess}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -36,7 +36,7 @@ object SSRAction extends ProfileFunctions {
     try {
       checkBypassAddr()
       var host = profile.host
-      if (!Utils.isNumeric(host)) Utils.resolve(host, enableIPv6 = false) match {
+      Utils.resolve(host, enableIPv6 = false) match {
         case Some(addr) => host = addr
         case None => throw new IOException("Host Not Resolved")
       }
@@ -72,14 +72,14 @@ object SSRAction extends ProfileFunctions {
 }
 
 object VmessAction extends ProfileFunctions {
-  override def getElapsed(port: Long = 8900): Long = {
+  override def getElapsed(port: Long = -1): Long = {
     checkBypassAddr()
     val vmess: Vmess = profile
-    if (!Utils.isNumeric(vmess.getAdd)) Utils.resolve(profile.v_add, enableIPv6 = false) match {
+    Utils.resolve(profile.v_add, enableIPv6 = false) match {
       case Some(addr) => vmess.setAdd(addr)
       case None => throw new IOException("Host Not Resolved")
     }
-    Tun2socks.testVmessLatency(vmess, app.getV2rayAssetsPath(), port)
+    Tun2socks.testVmessLatency(vmess, port)
   }
 
   override def isOK(): Boolean = !(TextUtils.isEmpty(profile.v_add) ||
@@ -92,7 +92,7 @@ object VmessAction extends ProfileFunctions {
 object V2JSONAction extends ProfileFunctions {
   override def getElapsed(port: Long = 8900): Long = {
     if (TextUtils.isEmpty(profile.v_add)) throw new IOException("Server Address Not Found!")
-    if (!Utils.isNumeric(profile.v_add)) Utils.resolve(profile.v_add, enableIPv6 = false, hostname = "1.1.1.1") match {
+    Utils.resolve(profile.v_add, enableIPv6 = false) match {
       case Some(addr) => profile.v_add = addr
       case None => throw new IOException("Name Not Resolved")
     }
@@ -103,6 +103,22 @@ object V2JSONAction extends ProfileFunctions {
   override def isOK(): Boolean = !TextUtils.isEmpty(profile.v_json_config)
 }
 
+object TrojanAction extends ProfileFunctions {
+  override def getElapsed(port: Long = 8900): Long = {
+    checkBypassAddr()
+    val trojan: Trojan = profile
+    Utils.resolve(profile.t_addr, enableIPv6 = false, "1.1.1.1") match {
+      case Some(addr) => trojan.setAdd(addr)
+      case None => throw new IOException("Host Not Resolved")
+    }
+    Tun2socks.testTrojanLatency(trojan)
+  }
+
+  override def isOK(): Boolean = !(TextUtils.isEmpty(profile.t_addr) ||
+    profile.t_port < 0 || profile.t_port > 65535 ||
+    TextUtils.isEmpty(profile.t_password))
+}
+
 
 object ProfileConverter {
 
@@ -110,7 +126,8 @@ object ProfileConverter {
     val profileAction: ProfileFunctions = profile match {
       case p if p.isVmess => VmessAction
       case p if p.isV2RayJSON => V2JSONAction
-      case p if !p.isV2Ray => SSRAction
+      case p if p.isTrojan => TrojanAction
+      case p if !p.isV2Ray && !p.isTrojan => SSRAction
       case _ => throw new Exception("Not Supported!")
     }
     profileAction.profile = profile

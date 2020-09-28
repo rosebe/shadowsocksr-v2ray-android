@@ -47,7 +47,7 @@ import java.util.Locale
 import android.util.{Base64, Log}
 import com.google.gson.GsonBuilder
 import com.j256.ormlite.field.{DataType, DatabaseField}
-import tun2socks.{Tun2socks, Vmess}
+import tun2socks.{Trojan, Tun2socks, Vmess}
 
 import scala.language.implicitConversions
 import Profile._
@@ -58,22 +58,39 @@ import com.github.shadowsocks.utils.{Route, Utils}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.Try
+import scala.util.{Random, Try}
 import ProfileConverter._
 import com.github.shadowsocks.database.VmessAction.profile
 import com.github.shadowsocks.types.{FailureConnect, Result, SuccessConnect}
 // automatic from Android without pc
 
 object Profile {
+
+  def getOption (profile: Profile): String = {
+    val routeMode = math.max(Route.ALL_ROUTES.indexOf(profile.route), 0)
+    val (dns_address, dns_port, china_dns_address, china_dns_port) =  profile.getDNSConf()
+    val vmessOption =
+      s"""
+         |{
+         |"useIPv6": ${profile.ipv6},
+         |"logLevel":"error",
+         |"enableSniffing": ${profile.enable_domain_sniff},
+         |"dns": "$dns_address:$dns_port,$china_dns_address:$china_dns_port",
+         |"routeMode": $routeMode,
+         |"allowInsecure": ${profile.t_allowInsecure}
+         |}
+""".stripMargin
+    vmessOption
+  }
+
   implicit def profileToVmess(profile: Profile): Vmess = {
     if (!profile.isVmess) {
       throw new Exception("Not a V2ray Profile")
     }
     val v_security = if (TextUtils.isEmpty(profile.v_security)) "auto" else profile.v_security
-    val routeMode = math.max(Route.ALL_ROUTES.indexOf(profile.route), 0)
-    val (dns_address, dns_port, china_dns_address, china_dns_port) =  profile.getDNSConf()
-//    Log.e("Profile", s"v_host: ${profile.v_host}, v_path: ${profile.v_path}, v_tls: ${profile.v_tls}, v_add: ${profile.v_add},v_port: ${profile.v_port}, v_aid: ${profile.v_aid}, " +
-//      s"v_net: ${profile.v_net}, v_id: ${profile.v_id}, v_type: ${profile.v_type}, v_security: ${profile.v_security}, routeMode: $routeMode, dns: $dns_address:$dns_port,$china_dns_address:$china_dns_port")
+    val vmessOption = getOption(profile)
+//        Log.e("Profile", s"v_host: ${profile.v_host}, v_path: ${profile.v_path}, v_tls: ${profile.v_tls}, v_add: ${profile.v_add},v_port: ${profile.v_port}, v_aid: ${profile.v_aid}, " +
+//      s"v_net: ${profile.v_net}, v_id: ${profile.v_id}, v_type: ${profile.v_type}, v_security: ${profile.v_security}, useIPv6: ${profile.ipv6}" + s"vmessOption: $vmessOption, domainSniff: ${profile.enable_domain_sniff}")
     Tun2socks.newVmess(
       profile.v_host,
       profile.v_path,
@@ -85,9 +102,23 @@ object Profile {
       profile.v_id,
       profile.v_type,
       v_security,
-      routeMode,
-      s"$dns_address:$dns_port,$china_dns_address:$china_dns_port",
-      "error" // TODO: config log level
+      vmessOption.getBytes(StandardCharsets.UTF_8)
+    )
+  }
+
+  implicit def profileToTrojan(profile: Profile): Trojan = {
+    if (!profile.isTrojan) {
+      throw new Exception("Not a Trojan Profile")
+    }
+    val trojanOption = getOption(profile)
+    Log.e("Profile", s"${profile.t_addr}, ${profile.t_port}, ${profile.t_password}, ${profile.t_peer}")
+    Tun2socks.newTrojan(
+      profile.t_addr,
+      profile.t_port,
+      profile.t_password,
+      profile.t_peer,
+      profile.t_allowInsecure, // SkipCertVerify
+      trojanOption.getBytes(StandardCharsets.UTF_8)
     )
   }
 
@@ -101,10 +132,11 @@ object Profile {
     }
 
     def testLatency(): Future[Result[Long]] = {
+      val port = new Random().nextInt(24) + 8900
       Future(profile.getElapsed())
         .map(SuccessConnect)
         .recoverWith {
-          case _: Exception => Future(profile.getElapsed()).map(SuccessConnect).recover{
+          case _: Exception => Future(profile.getElapsed(port)).map(SuccessConnect).recover{
               case e: Exception => FailureConnect(e.getMessage)
             }
         }
@@ -112,10 +144,10 @@ object Profile {
 
     def testTCPLatency(): Future[Result[Long]] = {
       Future{
-        var profileAddr = if(profile.isV2Ray) profile.v_add else profile.host
-        val profilePort = if(profile.isV2Ray) profile.v_port.toInt else profile.remotePort
+        var profileAddr = this.getAddr()
+        val profilePort = this.getPort()
         // Log.e("testTCPPingLatency", s"profileAddr: $profileAddr, profilePort: $profilePort")
-        if (!Utils.isNumeric(profileAddr)) Utils.resolve(profileAddr, enableIPv6 = false) match {
+        Utils.resolve(profileAddr, enableIPv6 = false) match {
           case Some(addr) => profileAddr = addr
           case None => throw new IOException("Host Not Resolved")
         }
@@ -149,13 +181,30 @@ object Profile {
       }).get
     }
 
+    def getAddr (): String = {
+      profile match {
+        case p if p.isV2Ray => profile.v_add
+        case p if p.isTrojan => profile.t_addr
+        case _ => profile.host
+      }
+    }
+
+    def getPort (): Int = {
+      profile match {
+        case p if p.isV2Ray => profile.v_port.toInt
+        case p if p.isTrojan => profile.t_port
+        case _ => profile.remotePort
+      }
+    }
+
+
     // support ssr & v2ray
-    // TODO: refactor
+    // TODO: refactor PROFILE.RESOLVE
     def testTCPLatencyThread () : String  = {
-      var profileAddr = if(profile.isV2Ray) profile.v_add else profile.host
-      val profilePort = if(profile.isV2Ray) profile.v_port.toInt else profile.remotePort
+      var profileAddr = this.getAddr()
+      val profilePort = this.getPort()
       // Log.e("testTCPPingLatency", s"profileAddr: $profileAddr, profilePort: $profilePort")
-      if (!Utils.isNumeric(profileAddr)) Utils.resolve(profileAddr, enableIPv6 = false) match {
+      Utils.resolve(profileAddr, enableIPv6 = false) match {
         case Some(addr) => profileAddr = addr
         case None => throw new IOException("Host Not Resolved")
       }
@@ -188,7 +237,7 @@ object Profile {
         china_dns_port = china_dns.split(":")(1).toInt
       } catch {
         case ex: Exception =>
-          dns_address = "1.1.1.1"
+          dns_address = "8.8.8.8"
           dns_port = 53
           china_dns_address = "223.5.5.5"
           china_dns_port = 53
@@ -233,7 +282,7 @@ class Profile {
   var method: String = "aes-256-cfb"
 
   @DatabaseField
-  var route: String = "all"
+  var route: String = "bypass-lan-china"
 
   @DatabaseField
   var proxyApps: Boolean = false
@@ -251,10 +300,10 @@ class Profile {
   var ssrsub_id: Int = 0
 
   @DatabaseField
-  var dns: String = "1.1.1.1:53,8.8.8.8:53"
+  var dns: String = "8.8.8.8:53,1.1.1.1:53"
 
   @DatabaseField
-  var china_dns: String = "223.5.5.5:53,114.114.114.114:53"
+  var china_dns: String = "223.5.5.5:53,223.6.6.6:53"
 
   @DatabaseField
   var ipv6: Boolean = false
@@ -278,7 +327,7 @@ class Profile {
   var userOrder: Long = _
 
   @DatabaseField
-  var proxy_protocol: String = "ssr" // ssr vmess v2ray_json
+  var proxy_protocol: String = "ssr" // ssr vmess v2ray_json trojan
 
   @DatabaseField
   var v_v: String = "2"
@@ -319,11 +368,29 @@ class Profile {
   @DatabaseField
   var v_security: String = ""
 
+  @DatabaseField
+  var t_addr: String = ""
+
+  @DatabaseField
+  var t_port:Int = 443
+
+  @DatabaseField
+  var t_password:String = ""
+
+  @DatabaseField
+  var t_allowInsecure: Boolean = true // skip verify
+
+  @DatabaseField
+  var t_peer: String = ""
+
+  var enable_domain_sniff = true
+
   override def toString(): String = {
     implicit val flags: Int = Base64.NO_PADDING | Base64.URL_SAFE | Base64.NO_WRAP
     this match {
       case _ if isVmess => VmessQRCode(v_v, v_ps, v_add, v_port, v_id, v_aid, v_net, v_type, v_host, v_path, v_tls, url_group).toString
       case _ if isV2RayJSON => "vjson://" + Utils.b64Encode(v_json_config.getBytes(Charset.forName("UTF-8")))
+      case _ if isTrojan => s"trojan://$t_password@$t_addr:$t_port?sni=$t_peer#$name"
       case _ => "ssr://" + Utils.b64Encode("%s:%d:%s:%s:%s:%s/?obfsparam=%s&protoparam=%s&remarks=%s&group=%s".formatLocal(Locale.ENGLISH,
         host, remotePort, protocol, method, obfs,
         Utils.b64Encode("%s".formatLocal(Locale.ENGLISH, password).getBytes),
@@ -341,5 +408,7 @@ class Profile {
   def isV2RayJSON = this.proxy_protocol == "v2ray_json"
 
   def isV2Ray = isVmess || isV2RayJSON
+
+  def isTrojan = this.proxy_protocol == "trojan"
 
 }

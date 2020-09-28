@@ -26,10 +26,12 @@ class SettingFragment extends PreferenceFragment with OnSharedPreferenceChangeLi
 //  lazy val sortMethod = findPreference(Key.SORT_METHOD).asInstanceOf[DropDownPreference]
   lazy val pingMethod = findPreference(Key.PING_METHOD).asInstanceOf[DropDownPreference]
   lazy val hideServer = findPreference(Key.HIDE_SERVER).asInstanceOf[CheckBoxPreference]
+//  lazy val fullTestBg = findPreference(Key.FULL_TEST_BG).asInstanceOf[CheckBoxPreference]
   lazy val autoUpdate = findPreference(Key.AUTO_UPDATE_SUBSCRIPTION).asInstanceOf[CheckBoxPreference]
   lazy val autoTestConnectivity = findPreference(Key.AUTO_TEST_CONNECTIVITY).asInstanceOf[CheckBoxPreference]
   lazy val ssrDNSNoCache = findPreference(Key.SSR_DNS_NOCAHCE).asInstanceOf[DropDownPreference]
   lazy val aboutPref = findPreference("about")
+  lazy val enableSniffDomain = findPreference(Key.ENABLE_SNIFF_DOMAIN).asInstanceOf[CheckBoxPreference]
   lazy val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
   private def activity = getActivity.asInstanceOf[SettingActivity]
 
@@ -53,6 +55,11 @@ class SettingFragment extends PreferenceFragment with OnSharedPreferenceChangeLi
       true
     })
 
+//    fullTestBg.setOnPreferenceChangeListener((_, value) => {
+//      prefs.edit().putBoolean(Key.FULL_TEST_BG, value.asInstanceOf[Boolean]).apply()
+//      true
+//    })
+
     autoUpdate.setOnPreferenceChangeListener((_, value) => {
       val autoUpdateValue = value.asInstanceOf[Boolean]
       prefs.edit().putBoolean(Key.AUTO_UPDATE_SUBSCRIPTION, autoUpdateValue).apply()
@@ -63,6 +70,13 @@ class SettingFragment extends PreferenceFragment with OnSharedPreferenceChangeLi
     autoTestConnectivity.setOnPreferenceChangeListener((_, value) => {
       val autoTestEnabled = value.asInstanceOf[Boolean]
       prefs.edit().putBoolean(Key.AUTO_TEST_CONNECTIVITY, autoTestEnabled).apply()
+      true
+    })
+
+    // TODO: appStateManager
+    enableSniffDomain.setOnPreferenceChangeListener((_, value) => {
+      val enabled = value.asInstanceOf[Boolean]
+      prefs.edit().putBoolean(Key.ENABLE_SNIFF_DOMAIN, enabled).apply()
       true
     })
 
@@ -79,7 +93,7 @@ class SettingFragment extends PreferenceFragment with OnSharedPreferenceChangeLi
       true
     })
 
-    aboutPref.setSummary(s"v${BuildConfig.VERSION_NAME}")
+    aboutPref.setSummary(s"v${BuildConfig.VERSION_NAME} (v2ray-core: v${Tun2socks.checkVersion()})")
     aboutPref.setOnPreferenceClickListener(_ => {
       val web = new WebView(activity)
       web.loadUrl("file:///android_asset/pages/about.html")

@@ -338,6 +338,12 @@ object Key {
   val v_security_json = "v_security_json"
   val v_security = "v_security"
   val v_headertypes = "v_headertypes"
+  val v_allowInsecure = "v_allowInsecure"
+
+  //trojan
+  val t_sni = "t_sni"
+  val t_addr = "t_addr"
+  val t_verify_certificate = "t_verify_certificate"
 
   val profileTip = "profileTip"
 
@@ -363,6 +369,7 @@ object Key {
   val FRAGMENT_SUBSCRIPTION = "FRAGMENT_SUBSCRIPTION"
   val FRAGMENT_NEW_PROFILE = "FRAGMENT_NEW_PROFILE"
   val SUBSCRIPTION_GROUP_NAME = "SUBSCRIPTION_GROUP_NAME"
+  val SUBSCRIPTION_UPDATED = "SUBSCRIPTION_UPDATED"
 
   // settings
   val SORT_METHOD = "pref_sort_method"
@@ -373,6 +380,12 @@ object Key {
   val AUTO_UPDATE_SUBSCRIPTION = "pref_auto_update_subscription"
   val AUTO_TEST_CONNECTIVITY = "pref_auto_test_connectivity"
   val SSR_DNS_NOCAHCE = "pref_ssr_dns_nocache1"
+  val FULL_TEST_BG = "pref_full_test_bg"
+  val ENABLE_SNIFF_DOMAIN = "pref_enable_sniff_domain"
+  val TEST_ZERO_MS = "pref_only_test_zero_ms"
+
+  // message
+  val TEST_PROFILE_IDS = "test_profile_ids"
 }
 
 object State {
@@ -389,6 +402,7 @@ object Action {
   val QUICK_SWITCH = "com.xxf098.ssrray.QUICK_SWITCH"
   val SCAN = "com.xxf098.ssrray.intent.action.SCAN"
   val SORT = "com.xxf098.ssrray.intent.action.SORT"
+  val STOP_TEST = "com.xxf098.ssrray.STOP_TEST"
 }
 
 object Route {
@@ -409,7 +423,7 @@ object Route {
   val ACL4SSR_ROUTES = List(ACL4SSR_BANDAD, ACL4SSR_GFWLIST_BANAD, ACL4SSR_ONLYBANAD, ACL4SSR_FULLGFWLIST, ACL4SSR_BACKCN_BANAD, ACL4SSR_NOBANAD)
   val ALL_ROUTES = List(
     ALL,
-    BYPASS_CHN, BYPASS_LAN, BYPASS_LAN_CHN, CHINALIST, GFWLIST,
+    BYPASS_LAN, BYPASS_CHN, BYPASS_LAN_CHN, GFWLIST, CHINALIST,
     ACL4SSR_BANDAD, ACL4SSR_GFWLIST_BANAD, ACL4SSR_ONLYBANAD, ACL4SSR_FULLGFWLIST, ACL4SSR_BACKCN_BANAD, ACL4SSR_NOBANAD,
     ACL
   )

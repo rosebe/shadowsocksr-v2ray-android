@@ -5,7 +5,7 @@ import java.util.{Date, Locale, Random}
 import java.io.{BufferedReader, BufferedWriter, File, IOException, InputStreamReader}
 import java.net._
 
-import android.app.{Activity, ProgressDialog, TaskStackBuilder}
+import android.app.{Activity, NotificationManager, PendingIntent, ProgressDialog, TaskStackBuilder}
 import android.content._
 import android.content.pm.PackageManager
 import android.nfc.NfcAdapter.CreateNdefMessageCallback
@@ -51,13 +51,14 @@ import tun2socks.Tun2socks
 
 import scala.language.implicitConversions
 import Profile._
+import android.support.v4.app.NotificationCompat
 import com.github.shadowsocks.database.VmessAction.profile
 import com.github.shadowsocks.services.{BgResultReceiver, GetResultCallBack, LatencyTestService}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{Duration, SECONDS}
 import scala.concurrent.{Await, Future}
-import com.github.shadowsocks.types.Nested._
+import scala.collection.immutable.HashMap
 
 object ProfileManagerActivity {
   // profiles count
@@ -78,7 +79,6 @@ object ProfileManagerActivity {
   }
 }
 
-// TODO: AndroidX
 // todo: import export
 final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClickListener with ServiceBoundContext
   with View.OnClickListener with CreateNdefMessageCallback {
@@ -172,8 +172,7 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
       } else ""
       handler.post(() => {
         text1.setText(item.name)
-        val serverAddress = if(item.isV2Ray) item.v_add else item.host
-        text2.setText(if (hideServer) item.url_group else serverAddress )
+        text2.setText(if (hideServer) item.url_group else item.getAddr() )
         tvTraffic.setText(trafficStatus)
       })
     }
@@ -300,6 +299,22 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
       }
       updateGroupSpinner()
     }
+    def updateByIds (ids: List[Int]): Unit = {
+      val maps = app.profileManager.getProfileElapsed(ids) match {
+        case Some(x) => x.map(p => (p.id, p.elapsed)).toMap
+        case None => new HashMap[Int, Long]()
+      }
+      Log.e(TAG, s"updateByIds: ${maps.mkString(", ")}")
+      profiles.zipWithIndex.foreach{
+        case (p, i) => {
+          val elapsed = maps.get(p.id)
+          if (elapsed.nonEmpty) {
+            p.elapsed = elapsed.getOrElse(p.elapsed)
+            notifyItemChanged(i)
+          }
+        }
+      }
+    }
   }
 
   private final class SSRSubViewHolder(val view: View) extends RecyclerView.ViewHolder(view)
@@ -397,10 +412,15 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
 
   private lazy val clipboard = getSystemService(Context.CLIPBOARD_SERVICE).asInstanceOf[ClipboardManager]
   private lazy val bgResultReceiver = new BgResultReceiver(new Handler(), (code: Int, bundle: Bundle) => {
-    profilesAdapter.resetProfiles()
-    profilesAdapter.notifyDataSetChanged()
     if (code == 100) {
-      Toast.makeText(this, "Test Finished", Toast.LENGTH_SHORT).show
+      profilesAdapter.resetProfiles()
+      profilesAdapter.notifyDataSetChanged()
+      Toast.makeText(this, getString(R.string.action_full_test_finished), Toast.LENGTH_SHORT).show
+    }
+    if (code == 101) {
+      val ids = bundle.getIntegerArrayList(Key.TEST_PROFILE_IDS)
+      import scala.collection.JavaConversions._
+      profilesAdapter.updateByIds(ids.toList.map(_.toInt))
     }
   })
 
@@ -574,6 +594,10 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
 
   override def onResume() {
     super.onResume()
+    if (app.SSRSubUpdateJobFinished) {
+      profilesAdapter.resetProfiles()
+      app.SSRSubUpdateJobFinished = false
+    }
     updateNfcState()
   }
 
@@ -959,6 +983,7 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
         undoManager.flush
         if (groupName.getOrElse("") != currentGroupName) initGroupSpinner(groupName)
         else groupAdapter.notifyDataSetChanged()
+        if (data.getStringExtra(Key.SUBSCRIPTION_UPDATED) == "true" && groupName.getOrElse("") == currentGroupName) profilesAdapter.resetProfiles()
         profilesAdapter.notifyDataSetChanged()
       }
       case REQUEST_SETTINGS => {
@@ -1011,9 +1036,10 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
     val profiles_normal = Parser.findAll(contents).toList
     val profiles_ssr = Parser.findAll_ssr(contents).toList
     val profiles_vmess = Parser.findAllVmess(contents).toList
-    val profiles = profiles_ssr ::: profiles_normal ::: profiles_vmess
+    val profiles_trojan = Parser.findAllTrojan(contents).toList
+    val profiles = profiles_ssr ::: profiles_normal ::: profiles_vmess ::: profiles_trojan
     if (profiles.isEmpty) {
-      finish()
+//      finish()
       return false
     }
     val dialog = new AlertDialog.Builder(this, R.style.Theme_Material_Dialog_Alert)
@@ -1069,7 +1095,7 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
 
   def onMenuItemClick(item: MenuItem): Boolean = item.getItemId match {
     case R.id.action_export =>
-      val profiles = ProfileManagerActivity.getProfilesByGroup(currentGroupName, false)
+      val profiles = ProfileManagerActivity.getProfilesByGroup(currentGroupName, is_sort)
       clipboard.setPrimaryClip(ClipData.newPlainText(null, profiles.mkString("\n")))
       Toast.makeText(this, R.string.action_export_msg, Toast.LENGTH_SHORT).show
 //      app.profileManager.getAllProfiles match {
@@ -1121,6 +1147,16 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
       startActivity(new Intent(this, classOf[ConfigActivity]))
       true
     case R.id.action_full_test =>
+//      if (app.settings.getBoolean(Key.FULL_TEST_BG, false)) {
+      if (1 == 1) {
+        val intent = new Intent(this, classOf[LatencyTestService])
+        intent.putExtra(Key.currentGroupName, currentGroupName)
+        intent.putExtra("BgResultReceiver", bgResultReceiver)
+        intent.putExtra("is_sort", is_sort)
+        startService(intent)
+        return true
+      }
+      // @deprecated
       val testProfiles = if (currentGroupName == getString(R.string.allgroups)) app.profileManager.getAllProfiles
       else app.profileManager.getAllProfilesByGroup(currentGroupName)
       testProfiles match {
@@ -1177,8 +1213,6 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
 
           // TODO: refactor
           // connection pool time
-
-
           val testSSRProfiles = (ssrProfiles: List[List[Profile]], size: Int, offset: Int) => {
             ssrProfiles.indices.foreach(index => {
               val profiles: List[Profile] = ssrProfiles(index)
@@ -1186,7 +1220,7 @@ final class ProfileManagerActivity extends AppCompatActivity with OnMenuItemClic
                 val confServer = profiles.indices.map(i => {
                   val profile = profiles(i)
                   var host = profile.host
-                  if (!Utils.isNumeric(host)) Utils.resolve(host, enableIPv6 = false) match {
+                  Utils.resolve(host, enableIPv6 = false) match {
                     case Some(addr) => host = addr
                     case None => host = "127.0.0.1"
                   }

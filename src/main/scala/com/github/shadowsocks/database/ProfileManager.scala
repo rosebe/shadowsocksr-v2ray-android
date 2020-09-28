@@ -167,19 +167,7 @@ class ProfileManager(dbHelper: DBHelper) {
   }
 
   def checkLastExistProfile(profile: Profile): Profile = {
-    if (!profile.isVmess) {
-      dbHelper.profileDao.queryBuilder()
-        .where().eq("name", profile.name)
-        .and().eq("host", profile.host)
-        .and().eq("remotePort", profile.remotePort)
-        .and().eq("password", profile.password)
-        .and().eq("protocol", profile.protocol)
-        .and().eq("protocol_param", profile.protocol_param)
-        .and().eq("obfs", profile.obfs)
-        .and().eq("obfs_param", profile.obfs_param)
-        .and().eq("url_group", profile.url_group)
-        .and().eq("method", profile.method).queryForFirst().asInstanceOf[Profile]
-    } else  {
+    if (profile.isVmess) {
       dbHelper.profileDao.queryBuilder()
         .where().eq("v_add", profile.v_add)
         .and().eq("v_port", profile.v_port)
@@ -192,6 +180,24 @@ class ProfileManager(dbHelper: DBHelper) {
         .and().eq("url_group", profile.url_group)
         .and().eq("v_ps", profile.v_ps)
         .and().eq("v_tls", profile.v_tls).queryForFirst()
+    } else if (profile.isTrojan) {
+      dbHelper.profileDao.queryBuilder()
+        .where().eq("t_addr", profile.t_addr)
+        .and().eq("t_port", profile.t_port)
+        .and().eq("t_password", profile.t_password)
+        .queryForFirst()
+    } else {
+      dbHelper.profileDao.queryBuilder()
+        .where().eq("name", profile.name)
+        .and().eq("host", profile.host)
+        .and().eq("remotePort", profile.remotePort)
+        .and().eq("password", profile.password)
+        .and().eq("protocol", profile.protocol)
+        .and().eq("protocol_param", profile.protocol_param)
+        .and().eq("obfs", profile.obfs)
+        .and().eq("obfs_param", profile.obfs_param)
+        .and().eq("url_group", profile.url_group)
+        .and().eq("method", profile.method).queryForFirst().asInstanceOf[Profile]
     }
   }
 
@@ -221,10 +227,10 @@ class ProfileManager(dbHelper: DBHelper) {
 
   def updateAllProfileRoute(profileType:String, value:String): Boolean = {
     try {
-      if (profileType == "v2ray") {
-        dbHelper.profileDao.executeRawNoArgs("UPDATE `profile` SET route" + " = '" + value + "' where coalesce(v_add, '') != '';")
+      if (profileType == "v2ray_trojan") {
+        dbHelper.profileDao.executeRawNoArgs("UPDATE `profile` SET route" + " = '" + value + "' where coalesce(v_add, '') != '' or coalesce(t_addr, '') != '';")
       } else {
-        dbHelper.profileDao.executeRawNoArgs("UPDATE `profile` SET route" + " = '" + value + "' where coalesce(v_add, '') = '';")
+        dbHelper.profileDao.executeRawNoArgs("UPDATE `profile` SET route" + " = '" + value + "' where coalesce(v_add, t_addr, '') = '';")
       }
       true
     } catch {
@@ -278,6 +284,20 @@ class ProfileManager(dbHelper: DBHelper) {
     }
   }
 
+  def getProfileElapsed(ids: List[Int]): Option[List[Profile]] = {
+    try {
+      import scala.collection.JavaConversions._
+      Option(dbHelper.profileDao.query(dbHelper.profileDao.queryBuilder
+        .selectColumns("id", "elapsed")
+        .where().in("id", ids.mkString(", ")).prepare)
+        .toList)
+    } catch {
+      case ex: Exception =>
+        Log.e(TAG, "getProfileElapsed", ex)
+        None
+    }
+  }
+
   def delProfile(id: Int): Boolean = {
     try {
       dbHelper.profileDao.deleteById(id)
@@ -326,11 +346,19 @@ class ProfileManager(dbHelper: DBHelper) {
     }
   }
 
-  def getAllProfilesBySSRSub(ssrsub: SSRSub): Option[List[Profile]] = {
+  def getAllProfilesBySSRSub(ssrsub: SSRSub, compareUrlGroup: Boolean = false): Option[List[Profile]] = {
     try {
       import scala.collection.JavaConversions._
       if (ssrsub.id > 0) {
-        Option(dbHelper.profileDao.query(dbHelper.profileDao.queryBuilder.where().eq("ssrsub_id", ssrsub.id).prepare).toList)
+        if (compareUrlGroup) {
+          // prevent delete regrouped profiles
+          Option(dbHelper.profileDao.query(
+            dbHelper.profileDao.queryBuilder.where()
+              .eq("ssrsub_id", ssrsub.id).and()
+              .eq("url_group", ssrsub.url_group).prepare).toList)
+        } else {
+          Option(dbHelper.profileDao.query(dbHelper.profileDao.queryBuilder.where().eq("ssrsub_id", ssrsub.id).prepare).toList)
+        }
       } else {
         getAllProfilesByGroup(ssrsub.url_group)
       }
@@ -412,10 +440,10 @@ class ProfileManager(dbHelper: DBHelper) {
 
   def createDefault(): Profile = {
     val profile = new Profile {
-      name = "项目地址: https://github.com/xxf098/shadowsocksr-v2ray-android"
-      host = "137.74.141.42"
-      remotePort = 80
-      password = "androidssr"
+      name = "项目地址: https://github.com/xxf098"
+      host = "1.2.3.4"
+      remotePort = 1234
+      password = "ssrray"
       protocol = "auth_chain_a"
       obfs = "http_simple"
       method = "none"

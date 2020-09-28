@@ -42,7 +42,10 @@ class SSRSubUpdateJob() extends Job {
   override def onRunJob(params: Params): Result = {
     Looper.prepare()
     if (app.settings.getInt(Key.ssrsub_autoupdate, 0) == 1) {
-      app.ssrsubManager.getAllSSRSubs match {
+      app.ssrsubManager.getAllSSRSubs.flatMap(subs => {
+        val autoSubs = subs.filter(_.enable_auto_update)
+        if (autoSubs.isEmpty) None else Some(autoSubs)
+      }) match {
         case Some(ssrsubs) =>
           val successCount = ssrsubs.map(ssrsub =>
             SSRSub.getSubscriptionResponse(ssrsub.url)
@@ -54,6 +57,7 @@ class SSRSubUpdateJob() extends Job {
             }).recover {
             case e: Exception => 0
           }.getOrElse(0)).sum
+          app.SSRSubUpdateJobFinished = true
           val result = if (successCount == ssrsubs.length) 1 else 0
           if (result == 1) {
             Log.i(SSRSubUpdateJob.TAG, "update subscriptions successfully!")
@@ -67,7 +71,7 @@ class SSRSubUpdateJob() extends Job {
             Result.RESCHEDULE
           }
         case _ => {
-          Log.i(SSRSubUpdateJob.TAG, "update subscriptions failed!")
+          Log.i(SSRSubUpdateJob.TAG, "no subscriptions found!")
           Toast.makeText(app, app.resources.getString(R.string.ssrsub_toast_fail), Toast.LENGTH_SHORT).show
           Looper.loop()
           Result.FAILURE

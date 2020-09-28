@@ -65,7 +65,7 @@ object DBHelper {
 }
 
 class DBHelper(val context: Context)
-  extends OrmLiteSqliteOpenHelper(context, DBHelper.PROFILE, null, 33) {
+  extends OrmLiteSqliteOpenHelper(context, DBHelper.PROFILE, null, 35) {
   import DBHelper._
 
   lazy val profileDao: Dao[Profile, Int] = getDao(classOf[Profile])
@@ -136,7 +136,7 @@ class DBHelper(val context: Context)
         }
 
         if (oldVersion < 19) {
-          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN dns VARCHAR DEFAULT '1.1.1.1:53';")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN dns VARCHAR DEFAULT '8.8.8.8:53,1.1.1.1:53';")
         }
 
         if (oldVersion < 20) {
@@ -176,7 +176,7 @@ class DBHelper(val context: Context)
           profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN v_json_config VARCHAR DEFAULT '';")
         }
         if (oldVersion < 28) {
-          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN ssrsub_id INTEGER DEFAULT '';")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN ssrsub_id INTEGER DEFAULT 0;")
         }
 
         if (oldVersion < 29) {
@@ -203,7 +203,17 @@ class DBHelper(val context: Context)
           profileDao.executeRawNoArgs("ALTER TABLE `appstate` ADD COLUMN dns_nocache VARCHAR DEFAULT 'off';")
         }
         if (oldVersion < 33) {
-          profileDao.executeRawNoArgs("ALTER TABLE `ssrsub` ADD COLUMN updated_at VARCHAR DEFAULT '';")
+          ssrsubDao.executeRawNoArgs("ALTER TABLE `ssrsub` ADD COLUMN updated_at VARCHAR DEFAULT '';")
+        }
+        if (oldVersion < 34) {
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN t_addr VARCHAR DEFAULT '';")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN t_port INTEGER DEFAULT 0;")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN t_password VARCHAR DEFAULT '';")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN t_allowInsecure SMALLINT;")
+          profileDao.executeRawNoArgs("ALTER TABLE `profile` ADD COLUMN t_peer VARCHAR DEFAULT '';")
+        }
+        if (oldVersion < 35) {
+          ssrsubDao.executeRawNoArgs("ALTER TABLE `ssrsub` ADD COLUMN enable_auto_update SMALLINT DEFAULT 1;")
         }
       } catch {
         case ex: Exception =>

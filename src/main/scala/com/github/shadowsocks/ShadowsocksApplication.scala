@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit
 
 import android.annotation.SuppressLint
 import android.app.{Application, NotificationChannel, NotificationManager}
-import android.content.Context
+import android.content.{Context, Intent}
 import android.content.res.Configuration
 import android.os.{Build, LocaleList}
 import android.preference.PreferenceManager
@@ -88,7 +88,7 @@ class ShadowsocksApplication extends Application {
 
   final val SIG_FUNC = "getSignature"
   var containerHolder: ContainerHolder = _
-  lazy val tracker = GoogleAnalytics.getInstance(this).newTracker(R.xml.tracker)
+//  lazy val tracker = GoogleAnalytics.getInstance(this).newTracker(R.xml.tracker)
   lazy val settings = PreferenceManager.getDefaultSharedPreferences(this)
   lazy val editor = settings.edit
   lazy val profileManager = new ProfileManager(new DBHelper(this))
@@ -98,21 +98,16 @@ class ShadowsocksApplication extends Application {
 
   var BLOCK_DOMAIN = List[String]()
   val DNS_CACHE =  scala.collection.mutable.Map[String, String]()
+  var SSRSubUpdateJobFinished = false
 
   def isNatEnabled = settings.getBoolean(Key.isNAT, false)
 
   def isVpnEnabled = !isNatEnabled
 
   // send event
-  def track(category: String, action: String) = tracker.send(new HitBuilders.EventBuilder()
-    .setAction(action)
-    .setLabel(BuildConfig.VERSION_NAME)
-    .build())
+  def track(category: String, action: String) = ""
 
-  def track(t: Throwable) = tracker.send(new HitBuilders.ExceptionBuilder()
-    .setDescription(new StandardExceptionParser(this, null).getDescription(Thread.currentThread.getName, t))
-    .setFatal(false)
-    .build())
+  def track(t: Throwable) = ""
 
   def profileId = {
 //    settings.getInt(Key.id, -1)
@@ -237,9 +232,13 @@ class ShadowsocksApplication extends Application {
       ssrChannel.setShowBadge(false)
       val v2rayChannel = new NotificationChannel("service-v2ray", getText(R.string.service_v2ray), importance)
       v2rayChannel.setShowBadge(false)
+      val trojanChannel = new NotificationChannel("service-trojan", getText(R.string.service_trojan), importance)
+      trojanChannel.setShowBadge(false)
       val natChannel = new NotificationChannel("service-nat", getText(R.string.service_nat), importance)
       natChannel.setShowBadge(false)
-      notification.createNotificationChannels(List(ssrChannel, v2rayChannel, natChannel).asJava)
+      val testChannel = new NotificationChannel("service-test", getText(R.string.service_test), importance)
+      testChannel.setShowBadge(true)
+      notification.createNotificationChannels(List(ssrChannel, v2rayChannel, trojanChannel, natChannel, testChannel).asJava)
     }
   }
 
@@ -289,7 +288,7 @@ class ShadowsocksApplication extends Application {
     copyAssets(System.getABI)
     copyAssets("acl")
     val assetPath = getApplicationInfo.dataDir + "/files/"
-    app.copyAssets("dat", assetPath)
+    copyAssets("dat", assetPath)
 //    Shell.SH.run(EXECUTABLES.map("chmod 755 " + getApplicationInfo.dataDir + '/' + _))
     editor.putInt(Key.currentVersionCode, BuildConfig.VERSION_CODE).apply()
   }

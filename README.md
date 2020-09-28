@@ -1,11 +1,11 @@
-## A ShadowsocksR and V2Ray Client for Android
+## A ShadowsocksR, V2Ray and Trojan Client for Android
 
-A [shadowsocksR](https://github.com/breakwa11/shadowsocks-rss/) and [V2Ray](https://github.com/v2ray/v2ray-core) client for Android, integrate SSR and V2Ray in one application, written in Scala.
+A fully featured [shadowsocksR](https://github.com/breakwa11/shadowsocks-rss/), [V2Ray](https://github.com/v2ray/v2ray-core) and [Trojan](https://trojan-gfw.github.io/trojan/protocol) client for Android, written in Scala.
 
  ![build](https://github.com/xxf098/shadowsocksr-v2ray-android/workflows/build/badge.svg?branch=xxf098%2Fmaster&event=push) 
  [![GitHub release](https://img.shields.io/github/release/xxf098/shadowsocksr-v2ray-android)](https://github.com/xxf098/shadowsocksr-v2ray-android/releases) 
  [![GitHub issues](https://img.shields.io/github/issues/xxf098/shadowsocksr-v2ray-android.svg)](https://GitHub.com/xxf098/shadowsocksr-v2ray-android/issues/) 
- [![Gitter](https://badges.gitter.im/shadowsocksr-v2ray-android/community.svg)](https://gitter.im/shadowsocksr-v2ray-android/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 
 
 ### PREREQUISITES
